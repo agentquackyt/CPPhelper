@@ -5,7 +5,7 @@ import { createGetUrl, getSlugs } from 'fumadocs-core/source';
 const getUrl = createGetUrl('/docs');
 
 export default {
-  ssr: false,
+  ssr: true,
   future: {
     v8_middleware: true,
   },
@@ -18,11 +18,6 @@ export default {
     }
 
     for await (const entry of glob('**/*.mdx', { cwd: 'content/docs' })) {
-      const slugs = getSlugs(entry);
-      paths.push(getUrl(slugs), `/llms.mdx/docs/${[...slugs, 'index.mdx'].join('/')}`);
-    }
-
-    for await (const entry of glob('**/**/*.mdx', { cwd: 'content/docs' })) {
       const slugs = getSlugs(entry);
       paths.push(getUrl(slugs), `/llms.mdx/docs/${[...slugs, 'index.mdx'].join('/')}`);
     }
