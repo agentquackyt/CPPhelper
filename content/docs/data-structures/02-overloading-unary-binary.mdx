@@ -1,0 +1,155 @@
+---
+title: Overloading — Unary & Binary Operators and Functions
+---
+
+## Overloading Unary Built-in Functions (e.g., `sin`)
+
+Most standard math functions from `<cmath>` can be overloaded for custom types. The goal is to preserve the original mathematical semantics while also propagating any additional metadata — in the `dfloat` case, the dependency flag.
+
+The argument is passed as a **`const` reference** because the function must not modify it. A new `dfloat` result is constructed, its value is computed using the underlying `std::sin`, and its dependency flag is copied from the argument (the sine of a dependent value is itself dependent).
+
+```cpp
+#include <cmath>
+
+struct dfloat { float f{0}; bool d{false}; };
+
+// Overloaded sin for dfloat
+dfloat sin(const dfloat& v) {
+    dfloat w;
+    w.f = std::sin(v.f);  // apply standard sin to the float component
+    w.d = v.d;            // propagate dependency: result depends on input iff input is dependent
+    return w;             // return a copy of the local result
+}
+
+int main() {
+    dfloat x;
+    x.f = 1.5708f; // approx. pi/2
+    x.d = true;
+
+    dfloat y = sin(x);
+    // y.f ≈ 1.0  (sin(pi/2))
+    // y.d == true  (propagated)
+}
+```
+
+## Overloading Unary Built-in Operators (e.g., Negation `-`)
+
+Unary operators are overloaded using the `operator` keyword followed by the symbol. The structure is identical to overloading a unary function: take one `const` reference argument, build a result, return it.
+
+```cpp
+struct dfloat { float f{0}; bool d{false}; };
+
+// Overloaded unary negation
+dfloat operator-(const dfloat& v) {
+    dfloat w;
+    w.f = -v.f;  // negate the value
+    w.d =  v.d;  // dependency is preserved unchanged
+    return w;
+}
+
+int main() {
+    dfloat x;
+    x.f = 3.0f;
+    x.d = true;
+
+    dfloat y = -x;
+    // y.f == -3.0
+    // y.d == true
+}
+```
+
+## Overloading Binary Built-in Functions (e.g., `fmax`)
+
+Binary functions take two arguments. For maximum flexibility, you need to provide **three overloads**: both arguments as `dfloat`, left argument as plain `float`, and right argument as plain `float`. This handles mixed expressions like `fmax(someFloat, someDfloat)`.
+
+The result's dependency flag is `true` if **either** argument is dependent (logical OR).
+
+```cpp
+#include <cmath>
+
+struct dfloat { float f{0}; bool d{false}; };
+
+// Both arguments are dfloat
+dfloat fmax(const dfloat& u, const dfloat& v) {
+    dfloat w;
+    w.f = std::fmax(u.f, v.f);
+    w.d = u.d || v.d;  // dependent if either argument is
+    return w;
+}
+
+// Left argument is a plain float (always independent)
+dfloat fmax(float u, const dfloat& v) {
+    dfloat w;
+    w.f = std::fmax(u, v.f);
+    w.d = v.d;  // only the dfloat side can carry dependency
+    return w;
+}
+
+// Right argument is a plain float (always independent)
+dfloat fmax(const dfloat& u, float v) {
+    dfloat w;
+    w.f = std::fmax(u.f, v);
+    w.d = u.d;
+    return w;
+}
+
+int main() {
+    dfloat a; a.f = 2.0f; a.d = true;
+    dfloat b; b.f = 5.0f; b.d = false;
+
+    dfloat c = fmax(a, b);
+    // c.f == 5.0
+    // c.d == true  (because a.d is true)
+
+    dfloat d = fmax(1.0f, b);
+    // d.f == 5.0
+    // d.d == false  (plain float is independent, b.d is false)
+}
+```
+
+## Overloading Binary Operators (e.g., Addition `+`)
+
+Binary operators follow the exact same pattern as binary functions. All three mixed-type variants must be provided.
+
+```cpp
+struct dfloat { float f{0}; bool d{false}; };
+
+// dfloat + dfloat
+dfloat operator+(const dfloat& u, const dfloat& v) {
+    dfloat w;
+    w.f = u.f + v.f;
+    w.d = u.d || v.d;  // dependent if either operand is
+    return w;
+}
+
+// float + dfloat
+dfloat operator+(float u, const dfloat& v) {
+    dfloat w;
+    w.f = u + v.f;
+    w.d = v.d;  // float literal is never dependent
+    return w;
+}
+
+// dfloat + float
+dfloat operator+(const dfloat& u, float v) {
+    dfloat w;
+    w.f = u.f + v;
+    w.d = u.d;
+    return w;
+}
+
+int main() {
+    dfloat x; x.f = 1.0f; x.d = true;
+    dfloat y; y.f = 2.0f; y.d = false;
+
+    dfloat z = x + y;
+    // z.f == 3.0
+    // z.d == true  (x.d is true)
+
+    dfloat w = 10.0f + x;
+    // w.f == 11.0
+    // w.d == true  (propagated from x)
+}
+```
+
+The same pattern applies to `-`, `*`, `/`, and any other arithmetic binary operator. Each new operator requires the same three overloads to handle all mixed-type combinations.

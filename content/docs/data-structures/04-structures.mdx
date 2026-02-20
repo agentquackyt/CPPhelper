@@ -1,0 +1,154 @@
+---
+title: Structures (struct) in Depth
+---
+
+## What is a `struct`?
+
+A `struct` in C++ is a **user-defined type** that groups together related variables under a single name. The members can be of any type — fundamental types, standard library types, or other user-defined types. In their simplest form, structs are pure data containers.
+
+```cpp
+struct matrix {
+    float* base;  // pointer to the raw data array
+    int m;        // number of rows
+    int n;        // number of columns
+};
+
+struct point3d {
+    float x, y, z;  // three coordinate components
+};
+
+int main() {
+    matrix A;
+    A.m = 3; A.n = 3;
+    A.base = new float[A.m * A.n];  // allocate 3x3 array on heap
+
+    point3d p;
+    p.x = 1.0f; p.y = 2.0f; p.z = 3.0f;
+
+    delete[] A.base;  // must free manually
+}
+```
+
+Common uses of `struct`:
+- **User-defined types** with custom arithmetic (as seen in overloading).
+- **Aggregation of data** of varying types that logically belong together.
+- **Wrapping connected function arguments** into a single object.
+- **Bit-fields** for compact memory layouts.
+
+## `sizeof` Behavior and Memory Padding
+
+The size of a struct in memory is **not defined by C++**. The standard only guarantees that `sizeof(struct)` is at least the sum of the sizes of its members. In practice, compilers insert **padding bytes** between members to satisfy alignment requirements of the target architecture.
+
+This means that the **order of member declarations matters** for memory consumption.
+
+```cpp
+#include <iostream>
+
+struct foo {
+    char a;  // 1 byte
+    int  b;  // 4 bytes — compiler inserts 3 padding bytes before this
+    char c;  // 1 byte + 3 padding bytes at end (to keep total size a multiple of 4)
+};           // typical sizeof: 12 bytes
+
+struct bar {
+    int  b;  // 4 bytes
+    char a;  // 1 byte
+    char c;  // 1 byte + 2 padding bytes at end
+};           // typical sizeof: 8 bytes
+
+struct baz {
+    char a;  // 1 byte
+    char c;  // 1 byte + 2 padding bytes before b
+    int  b;  // 4 bytes
+};           // typical sizeof: 8 bytes
+
+int main() {
+    std::cout << sizeof(foo) << "\n";  // 12 (on most 32/64-bit systems)
+    std::cout << sizeof(bar) << "\n";  // 8
+    std::cout << sizeof(baz) << "\n";  // 8
+
+    // sizeof(foo) != sizeof(bar) != sizeof(baz)
+    // even though all three have the same members!
+}
+```
+
+**Practical rule:** Group members of the same size together, or put the largest members first, to minimize padding and reduce the total struct size.
+
+## A Glimpse into Methods
+
+It is common to write standalone functions that take a struct reference as an argument:
+
+```cpp
+struct matrix { float* base; int m; int n; };
+
+void zeros(matrix& m);        // fill with zeros
+void ones(matrix& m);         // fill with ones
+float trace(const matrix& m); // sum of diagonal elements
+```
+
+However, this does not make the relationship between the type and its functions explicit. C++ allows you to **bind functions directly to a type** by declaring them as **member functions** (also called *methods*) inside the struct definition. The struct instance is then implicitly passed as the first argument, giving the method direct access to all member variables.
+
+```cpp
+struct matrix {
+    float* base;
+    int m;
+    int n;
+
+    // Member functions — the struct instance is the implicit first argument
+    void zeros();          // fill all entries with 0
+    void ones();           // fill all entries with 1
+    float trace() const;   // sum of diagonal (does not modify the struct)
+};
+
+int main() {
+    matrix A;
+    A.m = 3; A.n = 3;
+    A.base = new float[9];
+
+    A.zeros();              // calls zeros() with A as the implicit argument
+    float t = A.trace();    // t == 0.0 (all zeros diagonal)
+
+    delete[] A.base;
+}
+```
+
+This style is the foundation of **Object-Oriented C++** and is discussed in full detail in the Classes chapter. A `struct` in C++ is actually a special case of a `class` where all members are `public` by default.
+
+## Nested Structs
+
+Structs can be nested — a struct type can be defined inside another struct. The inner type's scope is then limited to the enclosing struct (accessed via `OuterType::InnerType`).
+
+```cpp
+#include <iostream>
+
+struct dfloat {
+    struct value {          // inner type, only accessible as dfloat::value
+        float v{24};        // default initialized to 24
+        void set_to_truth() { v = 42; }  // in-place method definition
+    } _v;                   // member of type value, indirectly default-initialized
+
+    bool _d{false};
+
+    void make_dependent() {
+        _v.set_to_truth();  // calls method on nested object
+        _d = true;
+    }
+};
+
+int main() {
+    dfloat x;
+    dfloat::value val;   // allocate a standalone value object
+    val.set_to_truth();  // val.v == 42
+
+    x._v = val;
+    x._d = true;
+
+    std::cout << x._v.v << "\n";  // 42  (nested member access)
+    std::cout << x._d   << "\n";  // 1   (true)
+}
+```
+
+The **composition relationship** between `dfloat` and `value` means:
+- Every `dfloat` object contains exactly one `value` sub-object.
+- The `value` sub-object is allocated and deallocated together with its parent `dfloat`.
+- A `value` cannot exist independently of a `dfloat` in this design.

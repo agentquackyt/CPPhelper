@@ -1,0 +1,76 @@
+---
+title: Integer Limits and Type Conversion
+---
+
+## Querying Limits
+
+The `<limits>` library provides information about numeric types.
+
+```cpp
+#include <iostream>
+#include <limits>
+
+int main() {
+    std::cout << std::numeric_limits<int>::max() << "\n"; // largest int
+    std::cout << std::numeric_limits<int>::min() << "\n"; // smallest int
+    std::cout << std::numeric_limits<int>::digits << "\n"; // bits for value
+}
+```
+
+
+## Implicit Conversion
+
+Smaller types convert automatically to larger ones.
+
+```cpp
+#include <iostream>
+int main() {
+    short s = 42;
+    int i = s;   // safe conversion
+
+    std::cout << i << "\n";
+}
+```
+
+
+## Dangerous Conversion (Narrowing)
+
+Large → small types lose data.
+
+```cpp
+#include <iostream>
+int main() {
+    int large = 262145;
+    short small = large; // overflow / truncation
+
+    std::cout << large << "\n";  // 262145
+    std::cout << small << "\n";  // incorrect value
+}
+```
+
+
+## Explicit Casting
+
+Use `static_cast` to show intent.
+
+```cpp
+#include <iostream>
+int main() {
+    int i = 300;
+    char c = static_cast<char>(i); // explicit conversion
+
+    std::cout << i << "\n"; // 300
+    std::cout << (int)c << "\n"; // truncated value
+}
+```
+
+
+## Why Conversion Matters
+
+Incorrect conversions can cause:
+
+* data loss
+* logic errors
+* security bugs
+
+Always choose appropriate types.

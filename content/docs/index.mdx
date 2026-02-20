@@ -1,32 +1,28 @@
 ---
-title: Hello World
+title: Getting Started
 description: |
-  Your first `document`
-  You'll love it!
+  Setting up the workspace
 ---
 
-Hey there! Fumadocs is the docs framework that also works on React Router!
 
-## Heading
 
-Hello World
+## C++
 
-<Cards>
-  <Card title="Learn more about React Router" href="https://reactrouter.com" />
-  <Card title="Learn more about Fumadocs" href="https://fumadocs.dev" />
-</Cards>
+Create a file named `hello_world.cpp` and add the following code:
 
-```ts
-console.log('I love React!');
+```cpp
+#include <iostream>
+
+int main() {
+  std::cout << "Leave me alone, world!" << std::endl;
+  return 0;
+}
 ```
 
-### Heading
+## Compilation
 
-#### Heading
+To compile and run the code, you can use the following command in your terminal:
 
-| Head                            | Description                         |
-| ------------------------------- | ----------------------------------- |
-| `hello`                         | Hello World                         |
-| very **important**              | Hey                                 |
-| _Surprisingly_                  | Fumadocs                            |
-| very long text that looks weird | hello world hello world hello world |
+```bash
+g++ -o hello_world hello_world.cpp && ./hello_world
+```

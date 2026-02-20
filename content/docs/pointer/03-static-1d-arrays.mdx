@@ -1,0 +1,139 @@
+---
+title: Static 1D Arrays
+---
+
+A **static array** in C++ is a fixed-size, contiguous block of memory where all elements share the same type. "Static" here means the size must be known at **compile time** - it cannot depend on a runtime variable (for that, you need dynamic allocation or `std::vector`).
+
+Arrays are intimately linked to pointers in C++. Understanding this connection is essential for both correctness and performance.
+
+### Declaration, Initialization, and Sizing
+
+```cpp
+#include <iostream>
+
+int main() {
+    // Declare an array of 3 ints, initialize first two; third is zero-padded
+    int v[3]{1, 2};
+
+    for (size_t i{0}; i < 3; ++i) {
+        std::cout << v[i] << ' ';
+    }
+    std::cout << '\n';
+    // Output: 1 2 0
+
+    // sizeof gives total bytes occupied: 3 * sizeof(int) = 3 * 4 = 12
+    // sizeof(v) == 12
+
+    return 0;
+}
+```
+
+Initialization rules:
+- If you provide **fewer values** than the array size, the remaining elements are **zero-initialized** for all built-in types.
+- If you provide **more values** than the array size, the compiler **rejects it** with an error.
+- An empty initializer `{}` zero-initializes the entire array.
+
+### The Pointer-Array Connection
+
+A static array name **decays** to a `const` pointer to its first element. This is why `v++` is a compiler error (you can't reassign a const pointer), but pointer arithmetic on a copy of the address works fine.
+
+```cpp
+#include <iostream>
+
+int main() {
+    int v[3]{1, 2, 3};
+    size_t i;
+    std::cin >> i;
+
+    // v[i] and *(v+i) are exactly equivalent
+    // v[i]   = *(v + i * sizeof(int))  - in pointer arithmetic terms
+    // *(v+i) = dereference (base address + offset i)
+    std::cout << v[i] << " == " << *(v+i) << '\n';
+    // If i=0: 1 == 1
+    // If i=1: 2 == 2
+    // If i=2: 3 == 3
+
+    // Consequently:
+    // v[0] == *v  (dereference the array itself)
+
+    return 0;
+}
+```
+
+The subscript operator `[]` is syntactic sugar for pointer arithmetic + dereference:
+
+```
+v[i]  ≡  *(v + i)
+```
+
+This also means (humorously) that `i[v]` is valid C++ and equivalent - because `*(v+i) == *(i+v)`. Don't write this in real code.
+
+### Invalid Element Access - A Major Source of Bugs
+
+C++ does **not** perform bounds checking on array accesses by default. Accessing an element out of bounds is **undefined behaviour**: the program may crash, return garbage, or silently corrupt other variables.
+
+```cpp
+#include <iostream>
+
+int main() {
+    int v[3]{1, 2, 3};
+    size_t i;
+    std::cout << "i=";
+    std::cin >> i;
+    std::cout << v[i] << '\n';
+    return 0;
+}
+// i=1  → OK, prints 2
+// i=3  → OUT OF BOUNDS: reads from memory just past the array (undefined behaviour)
+// i=1000000 → Almost certainly a segmentation fault (OS kills the process)
+```
+
+There is **no runtime check** here. The hardware simply computes the address `base + i * sizeof(int)` and reads from it. If that address belongs to another variable on the stack, you'll silently read (or write) that variable. If it's outside your process's memory, you'll get a segfault.
+
+For safer array access, use `std::array` (which supports `.at(i)` with bounds checking) or `std::vector`.
+
+### Wake Up! - Nested Array Indexing
+
+```cpp
+#include <iostream>
+
+int main() {
+    int v[3]{1, 2, 3};
+
+    // Breaking it down step by step:
+    // *v       = v[0] = 1
+    // v[*v]    = v[1] = 2
+    // v[v[*v]] = v[2] = 3
+
+    // v[0]        = 1
+    // *(v+1)      = v[1] = 2
+    // v[v[*v]]    = v[2] = 3
+
+    // Expression: v[0] + *(v+1) - v[v[*v]]
+    //           = 1   +   2    -    3
+    //           = 0
+
+    std::cout << v[0] + *(v+1) - v[v[*v]] << '\n';
+    // Output: 0
+    return 0;
+}
+```
+
+Reading deeply nested array expressions like this is a skill. Work from the inside out: evaluate the innermost expression first, then use its value as the next index.
+
+### Relationship Between `sizeof` and Arrays
+
+```cpp
+int v[3]{1, 2, 3};
+// sizeof(v)         == 12  (3 elements × 4 bytes each)
+// sizeof(v[0])      == 4   (one int)
+// sizeof(v) / sizeof(v[0]) == 3  ← this is how you compute array length from sizeof
+
+// However: once an array decays to a pointer, sizeof gives pointer size (8), not array size!
+int* p = v;
+// sizeof(p)  == 8  (pointer size)
+// sizeof(*p) == 4  (one int)
+// You CANNOT recover the array length from a decayed pointer - the information is lost.
+```
+
+This is why C-style functions that receive arrays also need a length parameter. It's one of the core motivations for `std::array` and `std::vector`, which carry their size with them.

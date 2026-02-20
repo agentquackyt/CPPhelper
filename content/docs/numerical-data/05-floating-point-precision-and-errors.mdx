@@ -1,0 +1,95 @@
+---
+title: Floating Point Precision and Errors
+---
+
+Floating-point arithmetic introduces rounding errors.
+
+## Example: Derivative Approximation
+
+```cpp
+#include <iostream>
+#include <cmath>
+
+int main() {
+    float x = 0.1f;
+
+    for (float h = 1.0f; h > 1e-8f; h /= 10.0f) {
+        float result =
+            (pow(1 + x + h, 3) - pow(1 + x, 3)) / h;
+
+        std::cout << "h=" << h
+                  << " result=" << result << "\n";
+    }
+}
+```
+
+As `h` gets smaller:
+
+* approximation improves
+* then gets worse due to rounding errors
+* eventually becomes zero
+
+## Machine Epsilon
+
+Smallest number where:
+
+```
+1 + ε ≠ 1
+```
+
+```cpp
+#include <iostream>
+#include <limits>
+
+int main() {
+    std::cout << std::numeric_limits<double>::epsilon();
+}
+```
+
+## Underflow and Overflow
+
+### Overflow
+
+Number too large → infinity.
+
+```cpp
+#include <iostream>
+int main() {
+    double x = 1e308;
+    x = x * 1e10;
+
+    std::cout << x << "\n"; // inf
+}
+```
+
+### Underflow
+
+Number too small → zero.
+
+```cpp
+#include <iostream>
+int main() {
+    double x = 1e-308;
+    x = x / 1e10;
+
+    std::cout << x << "\n"; // 0
+}
+```
+
+## Special Values
+
+Floating-point supports:
+
+* +0 and −0
+* ±infinity
+* NaN (Not a Number)
+
+```cpp
+#include <iostream>
+#include <cmath>
+
+int main() {
+    double nan = std::sqrt(-1); // invalid operation
+    std::cout << nan << "\n";   // nan
+}
+```

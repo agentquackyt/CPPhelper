@@ -22,6 +22,11 @@ export default {
       paths.push(getUrl(slugs), `/llms.mdx/docs/${[...slugs, 'index.mdx'].join('/')}`);
     }
 
+    for await (const entry of glob('**/**/*.mdx', { cwd: 'content/docs' })) {
+      const slugs = getSlugs(entry);
+      paths.push(getUrl(slugs), `/llms.mdx/docs/${[...slugs, 'index.mdx'].join('/')}`);
+    }
+
     return paths;
   },
 } satisfies Config;

@@ -1,0 +1,205 @@
+---
+title: Static 2D Arrays
+---
+
+A **static 2D array** in C++ is simply a static 1D array whose elements are themselves static 1D arrays. All the pointer-decay rules, `sizeof` behaviour, and out-of-bounds dangers from 1D arrays apply - just with an extra level of indirection.
+
+Conceptually, a 2D array `T a[m][n]` represents a matrix with `m` rows and `n` columns, where elements have type `T`.
+
+### Declaration and Initialization
+
+```cpp
+#include <iostream>
+
+int main() {
+    // Both declarations below are equivalent:
+
+    // Nested initializer lists (explicit row structure):
+    // int a[2][3]{{1,2,3},{4,5,6}};
+
+    // Flat initializer list (row-major order):
+    int a[2][3]{1, 2, 3, 4, 5, 6};
+
+    for (size_t j{0}; j < 2; ++j) {
+        for (size_t i{0}; i < 3; ++i) {
+            std::cout << a[j][i] << ' ';
+        }
+        std::cout << '\n';
+    }
+    // Output:
+    // 1 2 3
+    // 4 5 6
+
+    // sizeof(a) == 2 * 3 * sizeof(int) == 24
+    return 0;
+}
+```
+
+Elements are laid out in **row-major order**: all elements of row 0 come first, then all of row 1, and so on. This is a direct consequence of 2D arrays being arrays-of-arrays.
+
+### Memory Layout - Row-Major Visualization
+
+```
+a[0][0]  a[0][1]  a[0][2]  a[1][0]  a[1][1]  a[1][2]
+   1        2        3        4        5        6
+   ↑                          ↑
+ &a[0][0]                   &a[1][0]  (12 bytes later)
+```
+
+This contiguous layout has performance implications: iterating **row by row** (varying the column index `i` in the inner loop) is cache-friendly. Iterating column by column would skip over memory in strides, causing more cache misses.
+
+### The Pointer Perspective - Decoding 2D Access
+
+For `int a[2][3]{1,2,3,4,5,6}`:
+
+```cpp
+// a          - pointer to the first ROW (type: int(*)[3])
+// *a == a[0] - pointer to the first ELEMENT of row 0 (type: int*)
+// **a == a[0][0] - the VALUE 1
+
+// a + i      - pointer to row i
+// *(a+i) == a[i]      - pointer to first element of row i
+// *(a+i)+j == a[i]+j  - pointer to element j of row i
+// *(*(a+i)+j) == a[i][j] - the VALUE at row i, column j
+```
+
+This full equivalence is demonstrated here:
+
+```cpp
+#include <iostream>
+
+int main() {
+    int a[2][3]{1, 2, 3, 4, 5, 6};
+
+    // Standard subscript access:
+    std::cout << a[1][2] << '\n';            // 6
+
+    // Equivalent pointer arithmetic:
+    std::cout << *(*(a + 1) + 2) << '\n';   // 6
+
+    // Mixed:
+    std::cout << *(a[1] + 2) << '\n';        // 6
+
+    // a[i][j] and *(*(a+i)+j) always mean the same thing
+    return 0;
+}
+```
+
+### Traversing a 2D Array as a 1D Array
+
+Because the memory is contiguous, you can use a plain `int*` to walk through all elements in row-major order:
+
+```cpp
+#include <iostream>
+
+int main() {
+    int a[2][3]{1, 2, 3, 4, 5, 6};
+
+    // Take the address of the very first element
+    int* p{&a[0][0]};
+
+    for (size_t i{0}; i < 6; ++i) {
+        std::cout << *(p++) << ' ';
+    }
+    // Output: 1 2 3 4 5 6
+    return 0;
+}
+```
+
+This works because the 6 integers are laid out consecutively. This technique is the basis for **serialization** (flattening a 2D array into a 1D representation), discussed further below.
+
+### Vector-Matrix and Matrix-Vector Products
+
+A practical application: computing products between matrices and vectors using 2D arrays.
+
+```cpp
+#include <iostream>
+
+int main() {
+    // Matrix a (2x3), row vector u (1x2), column vector v (3x1)
+    int a[2][3]{1,2,3,4,5,6};
+    int u[2]{1,1};   // row vector of all ones
+    int ua[3];       // result: u * a  (1x2 · 2x3 = 1x3)
+    int v[3]{1,1,1}; // column vector of all ones
+    int av[2];       // result: a * v  (2x3 · 3x1 = 2x1)
+
+    // Vector-matrix product: ua = u * a
+    // ua[i] = sum_j u[j] * a[j][i]
+    for (size_t i{0}; i < 3; ++i) {
+        ua[i] = 0;
+        for (size_t j{0}; j < 2; ++j) {
+            ua[i] += u[j] * a[j][i];
+        }
+        std::cout << ua[i] << ' ';
+    }
+    // Output: 5 7 9  (sum of each column: 1+4=5, 2+5=7, 3+6=9)
+
+    // Matrix-vector product: av = a * v
+    // av[j] = sum_i a[j][i] * v[i]
+    for (size_t j{0}; j < 2; ++j) {
+        av[j] = 0;
+        for (size_t i{0}; i < 3; ++i) {
+            av[j] += a[j][i] * v[i];
+        }
+        std::cout << av[j] << ' ';
+    }
+    // Output: 6 15  (sum of each row: 1+2+3=6, 4+5+6=15)
+
+    std::cout << '\n';
+    return 0;
+    // Full output: 5 7 9 6 15
+}
+```
+
+### Wake Up! - Complex 2D Array Expressions
+
+```cpp
+#include <iostream>
+
+int main() {
+    int a[2][3]{1, 2, 3, 4, 5, 6};
+
+    // (*a + 6)[-1]
+    // *a = a[0] = pointer to first element of row 0 (points at value 1)
+    // *a + 6    = pointer 6 ints past a[0][0] = points at a[1][2] (value 6)... wait:
+    //           Actually: a[0][0] is at index 0, so (*a+6)[-1] = *(*a + 6 - 1)
+    //           = *(*a + 5) = a[0][5] - but the array only has 6 elements total!
+    //           Index 5 from a[0][0] = a[1][2] = 6
+    // (*a)[1]   = a[0][1] = 2
+    // So: (*a+6)[-1] - (*a)[1] = 6 - 2 = 4
+
+    // *(*(a+1)+1) % a[0][2]
+    // *(a+1)+1    = a[1]+1 = pointer to a[1][1] = value 5
+    // *(*(a+1)+1) = 5
+    // a[0][2]     = 3
+    // 5 % 3       = 2
+
+    std::cout << ((*a + 6)[-1] - (*a)[1])        // 4
+              << *(*(a+1)+1) % a[0][2] << '\n';  // 2
+    // Output: 42
+    return 0;
+}
+```
+
+### Serialization - Passing 2D Arrays to Functions
+
+C++ arrays passed to functions **decay to pointers**, losing their size information. For 2D arrays, the second dimension must be specified explicitly, or you serialize.
+
+```cpp
+const size_t q = 6;
+
+// These two signatures are equivalent to the compiler:
+void process1(float r[q][q], float p[q]);
+void process2(float r[][q],  float p[]);
+
+// But both require knowing q at compile time.
+// Serialization eliminates this constraint:
+void process3(size_t q, float r[], float p[]) {
+    // Access element r[j][i] as r[j*q + i]
+    for (size_t j = 0; j < q; ++j)
+        for (size_t i = 0; i < q; ++i)
+            p[j] += r[j * q + i];  // sum row j
+}
+```
+
+Serialization stores the matrix row by row in a 1D array. Element `(j, i)` maps to index `j*n + i` where `n` is the number of columns. This makes the global constant `q` unnecessary, allowing the function to handle matrices of any size at runtime.

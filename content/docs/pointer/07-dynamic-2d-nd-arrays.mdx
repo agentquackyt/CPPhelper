@@ -1,0 +1,216 @@
+---
+title: Dynamic 2D and nD Arrays
+---
+
+Just as static 2D arrays are arrays-of-arrays, dynamic 2D arrays are **dynamic arrays of pointers to dynamic arrays**. The recursive structure carries over completely, but the memory layout is fundamentally different - and understanding that difference is critical.
+
+### The Core Idea
+
+A dynamic 2D array `int** a` is constructed in two steps:
+
+1. Allocate an array of `m` pointers (one per row): `new int*[m]`
+2. For each row `j`, allocate an array of `n` ints: `a[j] = new int[n]{...}`
+
+The pointer `a` lives on the **stack**. The array of row-pointers and each row's data both live on the **heap**, but potentially at completely different, non-contiguous locations.
+
+### Dynamic 2D Array - Full Example
+
+```cpp
+#include <iostream>
+
+int main() {
+    // Step 1: allocate array of 2 row-pointers on the heap
+    int** a{new int*[2]};
+
+    // Step 2: allocate each row individually
+    int k{0};
+    for (size_t j{0}; j < 2; ++j) {
+        a[j] = new int[3]{k+1, k+2, k+3};  // row j gets 3 elements
+        k += 3;
+    }
+    // a[0] → {1, 2, 3}  (somewhere on the heap)
+    // a[1] → {4, 5, 6}  (somewhere else on the heap, NOT adjacent to row 0!)
+
+    // Element access: identical syntax to static 2D arrays
+    // a[j][i]  ≡  *(*(a+j)+i)
+    for (size_t j{0}; j < 2; ++j) {
+        for (size_t i{0}; i < 3; ++i) {
+            std::cout << a[j][i] << ' ';
+        }
+        std::cout << '\n';
+    }
+    // Output:
+    // 1 2 3
+    // 4 5 6
+
+    // sizeof(a)    == 8  (pointer to pointer)
+    // sizeof(a[0]) == 8  (pointer to int)
+    // sizeof(a[0][0]) == 4  (int)
+
+    // DEALLOCATION: rows must be deleted BEFORE the row-pointer array
+    // Correct order:
+    for (size_t j{0}; j < 2; ++j) {
+        delete[] a[j];   // free each row first
+    }
+    delete[] a;          // then free the array of pointers
+
+    return 0;
+}
+```
+
+If you called `delete[] a` first, the row pointers would be lost and the row data would **leak permanently**. The deallocation order must mirror the allocation in reverse.
+
+### Memory Layout - Static vs. Dynamic 2D Arrays
+
+This is the most important conceptual difference between the two approaches:
+
+```
+STATIC int a[2][3]:
+┌────┬────┬────┬────┬────┬────┐
+│  1 │  2 │  3 │  4 │  5 │  6 │   ← 24 bytes, all contiguous
+└────┴────┴────┴────┴────┴────┘
+   a[0][0]...a[0][2]  a[1][0]...a[1][2]
+
+DYNAMIC int** a (2 rows of 3):
+Stack:
+┌──────────────┐
+│  a (int**)   │──────────────────┐
+└──────────────┘                  │
+                                  ▼
+Heap (row-pointer array):        ┌──────────┬──────────┐
+                                 │ a[0] ptr │ a[1] ptr │
+                                 └────┬─────┴────┬─────┘
+                                      │          │
+Heap (row data, NON-CONTIGUOUS):      ▼          ▼
+                              ┌───┬───┬───┐  ┌───┬───┬───┐
+                              │ 1 │ 2 │ 3 │  │ 4 │ 5 │ 6 │
+                              └───┴───┴───┘  └───┴───┴───┘
+```
+
+Because the rows of a dynamic 2D array are **not contiguous**, you cannot iterate over all elements with a single `int*` pointer the same way you can with a static array. Attempting to do so leads to undefined behaviour, as the Wake Up! exercise demonstrates.
+
+### Wake Up! - The Non-Contiguous Trap
+
+```cpp
+#include <iostream>
+
+int main() {
+    int** a{new int*[2]};
+    int k{0};
+    for (size_t j{0}; j < 2; ++j) {
+        a[j] = new int[3]{k+1, k+2, k+3};
+        k += 3;
+    }
+    // a[0] → {1, 2, 3} at some address X
+    // a[1] → {4, 5, 6} at some address Y (NOT X+12!)
+
+    int* p{&(a[0][0])};  // p points to a[0][0] = 1
+
+    for (size_t i{0}; i < 6; ++i) {
+        std::cout << *(p++) << ' ';
+    }
+    // The first 3 iterations read a[0][0], a[0][1], a[0][2] → 1, 2, 3  (valid)
+    // After that, p walks past the end of row 0 into arbitrary heap memory
+    // The next 3 values (? ? ?) are NOT a[1] - they are whatever happened to
+    // be stored in the heap after row 0 (could be heap metadata, garbage, etc.)
+
+    // Output: 1 2 3 ? ? ?
+    // The ? values are undefined - implementation-specific heap internals
+
+    for (size_t j{0}; j < 2; ++j) { delete[] a[j]; }
+    delete[] a;
+    return 0;
+}
+```
+
+This is a subtle but important point: the `1 2 3 ? ? ?` output shows that unlike static 2D arrays, you **cannot flatten a dynamic 2D array** by just walking a pointer past the first row. The memory after `a[0][2]` is not `a[1][0]`.
+
+### Variable-Length Rows - A Unique Dynamic Advantage
+
+Dynamic 2D arrays allow rows to have **different lengths** (a jagged/ragged array). This is impossible with static 2D arrays, which require all rows to be the same length.
+
+```cpp
+#include <iostream>
+
+int main() {
+    // Triangular array: row j has (j+1) elements
+    int** tri{new int*[4]};
+    for (size_t j{0}; j < 4; ++j) {
+        tri[j] = new int[j+1];        // row 0: 1 elem, row 1: 2, etc.
+        for (size_t i{0}; i <= j; ++i)
+            tri[j][i] = static_cast<int>(i + 1);
+    }
+
+    for (size_t j{0}; j < 4; ++j) {
+        for (size_t i{0}; i <= j; ++i)
+            std::cout << tri[j][i] << ' ';
+        std::cout << '\n';
+    }
+    // Output:
+    // 1
+    // 1 2
+    // 1 2 3
+    // 1 2 3 4
+
+    for (size_t j{0}; j < 4; ++j) { delete[] tri[j]; }
+    delete[] tri;
+    return 0;
+}
+```
+
+### Dynamic 3D (nD) Arrays
+
+The pattern generalizes: a dynamic 3D array is a dynamic array of dynamic 2D arrays, i.e., `int***`.
+
+```cpp
+int main() {
+    // 3 matrices, each 2×2
+    int*** a{new int**[3]};
+    int k{0};
+
+    for (size_t j{0}; j < 3; ++j) {
+        a[j] = new int*[2];              // allocate array of row-pointers for matrix j
+        for (size_t i{0}; i < 2; ++i) {
+            a[j][i] = new int[2]{k+1, k+2};  // allocate row i of matrix j
+            k += 2;
+        }
+    }
+    // a[0] = {{1,2},{3,4}}
+    // a[1] = {{5,6},{7,8}}
+    // a[2] = {{9,10},{11,12}}
+
+    // sizeof(a)          == 8  (int***)
+    // sizeof(a[0])       == 8  (int**)
+    // sizeof(a[0][0])    == 8  (int*)
+    // sizeof(a[0][0][0]) == 4  (int)
+
+    // Deallocation: deepest level first, then work outward
+    for (size_t j{0}; j < 3; ++j) {
+        for (size_t i{0}; i < 2; ++i) {
+            delete[] a[j][i];    // free each row
+        }
+        delete[] a[j];           // free each row-pointer array
+    }
+    delete[] a;                  // free the outermost array
+
+    return 0;
+}
+```
+
+### General Deallocation Rule
+
+For an nD dynamic array, always deallocate from the **innermost dimension outward**, mirroring the allocation order in reverse. Failing to follow this order leaks the inner allocations because you lose the pointers needed to free them.
+
+```
+Allocation order (outside-in):
+  new int**[d0]        ← outermost
+  new int*[d1]         ← middle
+  new int[d2]          ← innermost
+
+Deallocation order (inside-out):
+  delete[] a[j][i]     ← innermost first
+  delete[] a[j]        ← middle
+  delete[] a           ← outermost last
+```
+
+This discipline is the manual equivalent of what `std::vector` handles automatically - which is why modern C++ strongly prefers `std::vector<std::vector<T>>` or a flat `std::vector<T>` with manual index arithmetic over raw `new`/`delete` in application code.

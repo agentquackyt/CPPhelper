@@ -1,0 +1,178 @@
+---
+title: Dynamic Memory Management
+---
+
+So far, all arrays had sizes known at **compile time**. This is a severe limitation - in real programs, you often don't know how many elements you'll need until the user provides input, reads a file, or performs some computation. Dynamic memory allocation solves this.
+
+### Stack vs. Heap - The Two Memory Regions
+
+Every C++ program operates with (at least) two distinct memory regions:
+
+**The Stack (static memory)** is managed entirely by the compiler. When you declare `int i;` or `int v[3];`, the compiler knows the size at compile time and emits instructions to allocate and deallocate that memory automatically. Memory is claimed when the variable comes into scope and released when it goes out of scope. The stack is fast but limited in size (typically a few MB).
+
+**The Heap (dynamic memory)** is a large pool of memory managed manually by the programmer. You request memory at runtime using `new` and you must return it using `delete`. The heap can be gigabytes in size, but careless use leads to **memory leaks** (forgetting to `delete`) or **dangling pointers** (using memory after `delete`).
+
+```
+ Stack                         Heap
+┌─────────────────┐           ┌──────────────────────────────┐
+│ int i = 42      │           │  [unnamed block of n ints]   │
+│ int* p ─────────┼──────────►│  allocated via new int[n]    │
+│ (p itself lives │           │  must be freed via delete[]  │
+│  on the stack)  │           └──────────────────────────────┘
+└─────────────────┘
+```
+
+### `new` and `delete` for Single Variables
+
+Dynamic memory is not restricted to arrays. Any type can be heap-allocated:
+
+```cpp
+#include <iostream>
+
+int main() {
+    // Stack allocation (automatic):
+    int i{42};         // named, released when scope ends
+
+    // Heap allocation (manual):
+    int* p{new int};   // allocates 4 bytes on heap, returns address → stored in p
+                       // the memory itself is UNNAMED - only accessible via p
+    *p = 99;
+    std::cout << *p << '\n';  // 99
+
+    delete p;          // MUST release, or this is a memory leak
+    p = nullptr;       // good practice: null out the pointer after delete
+                       // prevents accidental use-after-free
+
+    return 0;
+    // i is automatically released here (end of scope)
+    // if we hadn't called delete p, the 4 bytes would leak
+}
+```
+
+The `new` operator always returns a pointer to the allocated memory. There is no "name" for the heap memory - you can only reach it via the pointer. If you lose the pointer before calling `delete`, the memory is permanently leaked for the lifetime of the process.
+
+### Dynamic 1D Arrays
+
+The most common use of `new` is allocating arrays whose size is only known at runtime:
+
+```cpp
+#include <iostream>
+
+int main() {
+    size_t n;
+    std::cout << "n=";
+    std::cin >> n;
+
+    // n is not known at compile time → cannot use int v[n] (VLAs are non-standard)
+    // new int[n] allocates n consecutive ints on the heap
+    int* v{new int[n]{1, 2}};  // partial init: first two set, rest zero-padded
+
+    // Access is identical to static arrays: v[i] or *(v+i)
+    for (size_t i{0}; i < n; i++) {
+        std::cout << v[i] << ' ';
+    }
+    std::cout << '\n';
+
+    delete[] v;  // MUST use delete[] (not delete) for arrays!
+    return 0;
+    // If n=3:  Output: 1 2 0
+    // If n=5:  Output: 1 2 0 0 0
+}
+```
+
+Key differences from static arrays:
+
+- `new int[n]` uses `delete[]` (with brackets) - using plain `delete` on an array is **undefined behaviour**.
+- `sizeof(v) == 8` always (it's a pointer), not `n * sizeof(int)`. The size information is not carried with the pointer.
+- Initialization with `{1, 2, ...}` is allowed, but providing more values than `n` is a **runtime error** (unlike static arrays where it's a compile error).
+
+### Out-of-Bounds Access - Same Danger as Static Arrays
+
+Dynamic arrays have no bounds checking either:
+
+```cpp
+#include <iostream>
+
+int main() {
+    int* v{new int[3]{1, 2, 3}};
+    size_t i;
+    std::cout << "i=";
+    std::cin >> i;
+    std::cout << v[i] << '\n';  // no bounds check!
+    delete[] v;
+    return 0;
+    // i=1       → OK, prints 2
+    // i=3       → OUT OF BOUNDS: reads unknown heap memory (undefined behaviour)
+    // i=1000000 → almost certainly a segmentation fault
+}
+```
+
+The heap is a much larger address space than the stack, so out-of-bounds heap accesses are more likely to silently return garbage than to immediately segfault. This makes them **harder to detect** than stack overflows - the corrupted value may propagate far through the computation before causing a visible failure.
+
+### Wake Up! - Dynamic Array Expression
+
+```cpp
+#include <iostream>
+
+int main() {
+    int* v{new int[3]{1, 2, 3}};
+
+    // Breaking down: int i{*(v+1) * v[v[*(v+1)] - 1]};
+    //
+    // *(v+1)          = v[1] = 2
+    // v[*(v+1)]       = v[2] = 3
+    // v[*(v+1)] - 1   = 3 - 1 = 2
+    // v[v[*(v+1)]-1]  = v[2] = 3
+    // *(v+1) * v[...] = 2 * 3 = 6  → i = 6
+
+    int i{*(v+1) * v[v[*(v+1)] - 1]};
+
+    // i*(i+1) = 6 * 7 = 42
+    std::cout << i * (i + 1) << '\n';
+
+    delete[] v;
+    return 0;
+    // Output: 42
+}
+```
+
+### Common Memory Management Mistakes
+
+```cpp
+// MISTAKE 1: Forgetting delete[] → memory leak
+{
+    int* v = new int[100];
+    // ... use v ...
+    // forgot delete[] v;  → 400 bytes leaked every time this runs
+}
+
+// MISTAKE 2: Using delete instead of delete[] → undefined behaviour
+{
+    int* v = new int[100];
+    delete v;    // WRONG! Must be delete[] v;
+}
+
+// MISTAKE 3: Double delete → undefined behaviour (often crash)
+{
+    int* v = new int[10];
+    delete[] v;
+    delete[] v;  // WRONG! Memory already freed
+}
+
+// MISTAKE 4: Dangling pointer - using after delete
+{
+    int* v = new int[10];
+    delete[] v;
+    v[0] = 5;   // WRONG! v points to freed memory
+}
+
+// CORRECT PATTERN:
+{
+    int* v = new int[10]{};  // zero-initialize
+    // ... use v ...
+    delete[] v;
+    v = nullptr;             // prevent accidental reuse
+}
+```
+
+Setting pointers to `nullptr` after deletion is defensive programming. Dereferencing `nullptr` will immediately crash the program (segfault), which is far easier to diagnose than silently corrupting heap memory.

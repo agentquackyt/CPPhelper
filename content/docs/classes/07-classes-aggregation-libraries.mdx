@@ -1,0 +1,210 @@
+---
+title: Aggregation, Composition & Class Libraries
+---
+
+## Aggregation vs. Composition
+
+Two fundamental relationships between objects in OOP are **composition** and **aggregation**. Both describe a "has-a" relationship, but they differ in **ownership**.
+
+**Composition:** Object A *owns* object B. B is allocated when A is constructed and deallocated when A is destroyed. B cannot outlive A — its lifetime is fully controlled by A.
+
+**Aggregation:** Object A *uses* object B but does not own it. A stores a reference or pointer to B. B has an independent lifetime — it can be created and destroyed independently of A.
+
+```cpp
+#include <iostream>
+
+// --- Composition: dfloat_c owns its float value ---
+class dfloat_c {
+    float _v{42};    // owned: dfloat_c both allocates and "holds" this float
+
+public:
+    float& value() { return _v; }
+};
+
+// --- Aggregation: dfloat_a uses a float it does not own ---
+class dfloat_a {
+    float& _v;       // reference: points to memory owned by someone else
+
+public:
+    // The reference must be bound at construction and cannot be rebound
+    dfloat_a(float& v) : _v{v} {}
+
+    float& value() { return _v; }
+};
+
+int main() {
+    dfloat_c x;               // x owns the float 42
+    dfloat_a y(x.value());    // y holds a reference to x's float
+
+    y.value() = 99.0f;        // modifies x's float through y's reference!
+    std::cout << x.value() << "\n";  // 99  (x and y share the same memory)
+
+    // If x is destroyed, y's reference becomes dangling — be careful!
+}
+```
+
+**UML notation:**
+- Composition: filled diamond `◆` on the owning side.
+- Aggregation: hollow diamond `◇` on the using side.
+
+## Nested Classes and Their Composition Relationship
+
+When a struct/class is defined *inside* another, it creates a natural composition: every instance of the outer type contains one instance of the inner type.
+
+```cpp
+#include <iostream>
+
+struct dfloat {
+    struct value {           // inner class, accessible as dfloat::value
+        float _v{24};
+        void set_to_truth() { _v = 42; }
+    } _v;                    // member of type value — owned by dfloat
+
+    bool _d{false};
+
+    void make_dependent() {
+        _v.set_to_truth();   // calls method on the nested object
+        _d = true;
+    }
+};
+
+int main() {
+    dfloat x;
+    x.make_dependent();
+    std::cout << x._v._v << "\n";  // 42   (nested member access)
+    std::cout << x._d    << "\n";  // 1    (true)
+
+    // You can also create standalone value objects:
+    dfloat::value v;
+    v.set_to_truth();
+    std::cout << v._v << "\n";     // 42
+}
+```
+
+## Class Libraries: Separating Declaration and Implementation
+
+For larger projects, it is best practice to **separate** the class *declaration* (the `.h` header file) from its *implementation* (the `.cpp` source file). This way, clients only include the header; the implementation can be compiled separately and linked as a static library.
+
+**Directory structure:**
+```
+project/
+├── apps/
+│   ├── main.cpp
+│   └── Makefile
+├── include/
+│   └── dfloat.h        ← declaration only
+├── lib/
+│   └── libdfloat.a     ← compiled static library
+└── src/
+    ├── dfloat.cpp       ← implementation
+    └── Makefile
+```
+
+**`include/dfloat.h` — declaration:**
+
+```cpp
+#pragma once  // prevents this file from being included more than once per translation unit
+
+class dfloat {
+    float _v{42};   // private member variable
+
+public:
+    // Declaration only — implementation is in dfloat.cpp
+    const float& value() const;
+    void set_value(float v);
+    bool is_zero() const;
+};
+```
+
+**`src/dfloat.cpp` — implementation:**
+
+```cpp
+#include "dfloat.h"  // must include the declaration
+
+// Scope resolution operator :: links implementation to the class
+const float& dfloat::value() const {
+    return _v;
+}
+
+void dfloat::set_value(float v) {
+    _v = v;
+}
+
+bool dfloat::is_zero() const {
+    return _v == 0.0f;
+}
+```
+
+**`apps/main.cpp` — application:**
+
+```cpp
+#include "dfloat.h"   // only the header — implementation is linked separately
+#include <iostream>
+
+int main() {
+    dfloat x;                           // uses default: _v == 42
+    std::cout << x.value() << "\n";     // 42
+
+    x.set_value(0.0f);
+    std::cout << x.is_zero() << "\n";   // 1  (true)
+
+    dfloat* p = new dfloat();
+    p->set_value(3.14f);
+    std::cout << p->value() << "\n";    // 3.14
+    delete p;
+}
+```
+
+`#pragma once` is a widely supported non-standard directive that acts as an include guard, preventing the header from being processed more than once even if included from multiple files. The traditional alternative is an `#ifndef` guard:
+
+```cpp
+// Traditional include guard (equivalent to #pragma once):
+#ifndef DFLOAT_H
+#define DFLOAT_H
+
+class dfloat { /* ... */ };
+
+#endif
+```
+
+## UML Class Diagram Summary
+
+UML (Unified Modeling Language) provides a visual notation for class designs. The key elements used in this course:
+
+```
+ClassName
+─────────────────────────────────
+- _priv_var: type               ← private member variable (- prefix)
++ _pub_var:  type               ← public member variable  (+ prefix)
+─────────────────────────────────
++ ClassName()                   ← public default constructor
++ ClassName(arg: type)          ← public custom constructor
++ ~ClassName()                  ← public destructor (custom, shown explicitly)
++ method_name(arg: type): ret   ← public method returning ret
++ const_method() const: ret     ← const member function
+- helper(): void                ← private method
++ static stat_method(): type    ← static method (shared, no this)
+```
+
+Example for a complete `dfloat` class:
+
+```
+dfloat
+──────────────────────────────────
+- _truth: float const = 42
+- _v: float
+- _counter: static size_t = 0
+──────────────────────────────────
++ dfloat(v: float)
++ dfloat()
++ ~dfloat()
++ get_truth() const: float
++ get_value() const: float
++ set_value(v: float): void
++ static get_counter(): size_t
+```
+
+Relationships between classes in UML:
+- **Composition** (filled diamond): `dfloat ◆────── value` — dfloat owns value.
+- **Aggregation** (hollow diamond): `dfloat_a ◇────── float` — dfloat_a uses but does not own a float.
+- **Inheritance** (hollow triangle arrow): `BMW ──▷ Car` — BMW is a Car.

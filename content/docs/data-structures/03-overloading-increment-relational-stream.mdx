@@ -1,0 +1,190 @@
+---
+title: Overloading — Increment, Decrement, Relational & Stream Operators
+---
+
+## Prefix Increment and Decrement
+
+Prefix `++` and `--` modify the object **in place** and return a reference to the modified object. This allows chaining like `++(++i)`.
+
+The argument is passed by **non-`const` reference** because it must be modified. The function returns a reference to the same object (not a copy), enabling chained calls.
+
+```cpp
+struct dfloat { float f{0}; bool d{false}; };
+
+// Prefix increment: ++v
+dfloat& operator++(dfloat& v) {
+    ++v.f;      // increment the value component
+                // v.d is NOT changed — dependency status is preserved
+    return v;   // return reference to the modified object (enables chaining)
+}
+
+// Prefix decrement: --v
+dfloat& operator--(dfloat& v) {
+    --v.f;
+    return v;
+}
+
+int main() {
+    dfloat x; x.f = 5.0f; x.d = true;
+
+    ++x;
+    // x.f == 6.0
+    // x.d == true  (unchanged)
+
+    dfloat& ref = ++(++x);  // chaining: x becomes 8.0
+    // x.f == 8.0, ref refers to x
+}
+```
+
+## Postfix Increment and Decrement
+
+Postfix `++` and `--` return the **old value** (before modification) and then increment/decrement the object. Because the return value differs from the modified object, the result must be returned **by value** (a copy), not by reference.
+
+The C++ standard distinguishes prefix from postfix using a **dummy `int` parameter** as the second argument. This parameter is never used in the function body — it only serves as a syntactic marker for the compiler.
+
+```cpp
+struct dfloat { float f{0}; bool d{false}; };
+
+// Postfix decrement: v--
+// Note the dummy int parameter — it is not named because it is not used
+dfloat operator--(dfloat& v, int) {
+    dfloat w{v};  // save a copy of the current state (this will be returned)
+    --v.f;        // now modify the original (decrement in place)
+                  // w.d is already set from v.d via the copy
+    return w;     // return the OLD value (before decrement)
+}
+
+// Postfix increment: v++
+dfloat operator++(dfloat& v, int) {
+    dfloat w{v};
+    ++v.f;
+    return w;
+}
+
+int main() {
+    dfloat x; x.f = 5.0f;
+
+    dfloat old = x--;   // old gets 5.0, x becomes 4.0
+    // old.f == 5.0
+    // x.f   == 4.0
+
+    dfloat also_old = x++;  // also_old gets 4.0, x becomes 5.0
+    // also_old.f == 4.0
+    // x.f        == 5.0
+}
+```
+
+**Key difference summary:**
+- Prefix: returns reference to modified object → enables chaining, no copy cost.
+- Postfix: returns copy of old value → cannot be chained efficiently, involves a copy.
+
+## Unary Relational Operators (e.g., `operator!` — Test for Zero)
+
+Relational operators return `bool`. They do not participate in dependency propagation (a `bool` result cannot carry a `dfloat` dependency flag), so the implementation simply operates on the `f` component.
+
+```cpp
+struct dfloat { float f{0}; bool d{false}; };
+
+// operator! tests whether the value is zero
+bool operator!(const dfloat& v) {
+    return v.f == 0;  // true iff the float value is exactly zero
+}
+
+int main() {
+    dfloat x; x.f = 0.0f;
+    dfloat y; y.f = 3.0f;
+
+    bool a = !x;  // true  (x.f == 0)
+    bool b = !y;  // false (y.f != 0)
+}
+```
+
+## Binary Relational Operators (e.g., `operator<`)
+
+Binary comparisons similarly return `bool` and compare only the `f` components. All three mixed-type variants are needed.
+
+```cpp
+struct dfloat { float f{0}; bool d{false}; };
+
+// dfloat < dfloat
+bool operator<(const dfloat& u, const dfloat& v) {
+    return u.f < v.f;
+}
+
+// float < dfloat
+bool operator<(float u, const dfloat& v) {
+    return u < v.f;
+}
+
+// dfloat < float
+bool operator<(const dfloat& u, float v) {
+    return u.f < v;
+}
+
+int main() {
+    dfloat a; a.f = 2.0f;
+    dfloat b; b.f = 5.0f;
+
+    bool r1 = a < b;      // true
+    bool r2 = 3.0f < b;   // true  (3.0 < 5.0)
+    bool r3 = a < 1.0f;   // false (2.0 < 1.0 is false)
+}
+```
+
+## Stream Operators `>>` and `<<`
+
+Overloading stream operators allows `dfloat` to be used directly with `std::cin`, `std::cout`, file streams, and any other standard stream. Both operators receive the stream by **non-`const` reference** (streams are always modified), and both return that same stream reference — this enables **chaining** like `std::cout << a << b << "\n"`.
+
+```cpp
+#include <iostream>
+
+struct dfloat { float f{0}; bool d{false}; };
+
+// Input: reads a float from the stream into v.f
+std::istream& operator>>(std::istream& s, dfloat& v) {
+    s >> v.f;   // delegate to float's stream operator
+    return s;   // return stream reference for chaining
+}
+
+// Output: writes v.f to the stream
+std::ostream& operator<<(std::ostream& s, const dfloat& v) {
+    s << v.f;   // delegate to float's stream operator
+    return s;   // return stream reference for chaining
+}
+
+int main() {
+    dfloat x, y;
+    // std::cin >> x;  // would read a float into x.f
+
+    x.f = 3.14f;
+    y.f = 2.71f;
+
+    std::cout << "x=" << x << " y=" << y << "\n";
+    // Output: x=3.14 y=2.71
+
+    // Chaining works because operator<< returns the stream:
+    // (std::cout << "x=") returns std::cout
+    // then << x is applied to that, etc.
+}
+```
+
+The same overloads are automatically inherited by `std::ifstream` and `std::ofstream`, since those derive from `std::istream` and `std::ostream`.
+
+```cpp
+#include <fstream>
+
+int main() {
+    dfloat x, y;
+
+    std::ifstream in("x.in");
+    in >> x;           // reads from file using the overloaded >>
+
+    y = -sin(x);       // uses overloaded sin and unary -
+    ++y;               // uses overloaded prefix ++
+
+    std::ofstream out("y.out");
+    out << y << '\n';  // writes to file using the overloaded <<
+
+    return 0;
+}
+```

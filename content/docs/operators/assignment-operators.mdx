@@ -1,0 +1,36 @@
+---
+title: Assignment Operators 
+---
+
+Assignment operators assign values to variables.
+
+## Basic Assignment
+
+```cpp
+int x = 5;
+```
+
+## Compound Assignment
+
+| Operator | Equivalent To |
+| -------- | ------------- |
+| `+=`     | `x = x + y`   |
+| `-=`     | `x = x - y`   |
+| `*=`     | `x = x * y`   |
+| `/=`     | `x = x / y`   |
+| `%=`     | `x = x % y`   |
+
+## Example
+
+```cpp
+#include <iostream>
+int main() {
+  int x = 10;
+
+  x += 5; // 15
+  x *= 2; // 30
+  x -= 10; // 20
+
+  std::cout << x;
+}
+```

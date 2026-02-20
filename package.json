@@ -1,5 +1,5 @@
 {
-  "name": ".",
+  "name": "cpphelper",
   "private": true,
   "type": "module",
   "scripts": {

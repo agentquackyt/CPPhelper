@@ -1,0 +1,178 @@
+---
+title: Static nD Arrays (Tensors)
+---
+
+The pattern from 1D → 2D generalizes cleanly to any number of dimensions. A **static nD array** is a static 1D array whose elements are static (n−1)D arrays. All properties - contiguous row-major storage, pointer decay, out-of-bounds risks, serialization - follow by induction.
+
+In the language of numerical computing, these are sometimes called **tensors**.
+
+### 3D Arrays - Declaration and Traversal
+
+```cpp
+#include <iostream>
+
+int main() {
+    // Both declarations below are equivalent:
+
+    // Fully nested:
+    // int a[3][2][2]{{{1,2},{3,4}}, {{5,6},{7,8}}, {{9,10},{11,12}}};
+
+    // Flat (row-major flattening):
+    int a[3][2][2]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+
+    // sizeof(a) == 3 * 2 * 2 * sizeof(int) == 48
+
+    for (size_t j{0}; j < 3; ++j) {         // iterate over "matrices" (depth)
+        for (size_t i{0}; i < 2; ++i) {     // iterate over rows
+            for (size_t k{0}; k < 2; ++k) { // iterate over columns
+                std::cout << a[j][i][k] << ' ';
+            }
+            std::cout << '\n';
+        }
+        std::cout << '\n';
+    }
+    // Output:
+    // 1 2
+    // 3 4
+    //
+    // 5 6
+    // 7 8
+    //
+    // 9 10
+    // 11 12
+
+    return 0;
+}
+```
+
+### Pointer Interpretation for 3D Arrays
+
+For `int a[3][2][2]{1,2,...,12}`:
+
+```
+a           → pointer to first 2D sub-array (type: int(*)[2][2])
+*a == a[0]  → pointer to first row of first matrix (type: int(*)[2])
+**a == a[0][0] → pointer to first element of first row (type: int*)
+***a == a[0][0][0] → the VALUE 1
+
+a+i         → pointer to i-th matrix     (i = 0,1,2)
+*(a+i) == a[i]         → pointer to first row of i-th matrix
+*(*(a+i)+j) == a[i][j]        → pointer to first element of j-th row of i-th matrix (j = 0,1)
+*(*(*(a+i)+j)+k) == a[i][j][k] → VALUE at position (i, j, k)  (k = 0,1)
+```
+
+Each additional dimension adds one more level of pointer indirection.
+
+### Worked Example - Equivalent Access Forms
+
+```cpp
+#include <iostream>
+
+int main() {
+    int a[3][2][2]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+
+    // All of these access a[2][1][0] = 11:
+    std::cout << a[2][1][0]             << '\n'; // 11 - standard subscript
+    std::cout << *(*(*(a+2)+1)+0)       << '\n'; // 11 - pure pointer arithmetic
+    std::cout << *(a[2][1]+0)           << '\n'; // 11 - mixed
+    std::cout << (*(a+2))[1][0]         << '\n'; // 11 - mixed
+
+    return 0;
+}
+```
+
+### Wake Up! - Tensor Index Decoding
+
+Given `double t[2][3][2]`, fill in the question marks:
+
+```cpp
+double t[2][3][2];
+
+// Line 1: *(*(*(t+1))+1)  = t[?][?][?] - ?
+// t+1       → pointer to t[1] (the second 3×2 matrix)
+// *(t+1)    → t[1], pointer to first row of that matrix (type: double(*)[2])
+// **(t+1)   → t[1][0], pointer to first element of that row (type: double*)
+// **(t+1)+1 → pointer to t[1][0][1]
+// *(**(t+1)+1) = t[1][0][1]
+// Answer: t[1][0][1] - 0
+
+// Line 2: **(*(t+1)+1) = t[?][?][?] / ?
+// *(t+1)     → t[1], pointer to first row
+// *(t+1)+1   → t[1]+1, pointer to second row t[1][1]
+// *(*(t+1)+1) → t[1][1], pointer to first element of second row
+// **(*(t+1)+1) = t[1][1][0]
+// Answer: t[1][1][0] / 1
+
+// Line 3: ***(t+1) + 1 = t[?][?][?] + ?
+// t+1    → t[1]
+// *(t+1) → t[1][0]   (first row of second matrix)
+// **(t+1) → t[1][0][0]  (first element of first row of second matrix)
+// ***(t+1) = t[1][0][0]
+// ***(t+1) + 1 is just the VALUE t[1][0][0] plus 1
+// Answer: t[1][0][0] + 1
+
+// Summary:
+// *(*(*(t+1))+1)  = t[1][0][1] - 0
+// **(*(t+1)+1)    = t[1][1][0] / 1
+// ***(t+1) + 1    = t[1][0][0] + 1
+```
+
+### Wake Up! - Complex 3D Expression
+
+```cpp
+#include <iostream>
+
+int main() {
+    int a[3][2][2]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+
+    // Expression 1: *(((**a) + *(a[0]+1)[0]))
+    // **a         = a[0][0], which is a pointer to int: points to value 1
+    //             WAIT - **a as a pointer: *a = a[0] (row pointer), **a = a[0][0] = int* pointing at 1
+    // *(a[0]+1)   = a[0][1] - this is of type int[2], i.e. a row-pointer
+    // (a[0]+1)[0] = a[0][1][0] = 3 - NO, wait:
+    //   a[0]+1 is pointer to second row of first matrix → a[0][1]
+    //   (a[0]+1)[0] = a[0][1] itself as a pointer to int
+    //   *(a[0]+1)[0] = a[0][1][0] = 3
+    // **a + *(a[0]+1)[0] = (pointer to 1) + 3 = pointer to a[0][3] = a[1][1] pointer = value 4
+    // *(((**a) + *(a[0]+1)[0])) = 4
+
+    // Expression 2: *(*(*(a+3)-1)) / a[1][0][1]
+    // a+3    → one past end of array (points to where a[3] would be)
+    // *(a+3) → first row of that imaginary matrix → points to a[2][2] (one past end)
+    // **(a+3) → first element of that row → points to the byte just after a[2][1][1]=12
+    //         = pointer to one past last element
+    // **(a+3) - 1 → pointer to a[2][1][1] = 12
+    // *(*(*(a+3)-1)) = 12 (reading the last valid element)
+    // a[1][0][1] = 6
+    // 12 / 6 = 2
+
+    // Output: 42
+    std::cout << *(((**a) + *(a[0]+1)[0]))
+              << *(*(*(a+3))-1) / a[1][0][1] << '\n';
+    // Output: 42
+
+    return 0;
+}
+```
+
+### Generalized Serialization for nD Arrays
+
+Just as a 2D array `a[m][n]` serializes to index `j*n + i`, higher-dimensional arrays generalize:
+
+```
+3D: a[d][m][n]  →  flat index = i_depth * (m*n) + i_row * n + i_col
+4D: a[d0][d1][d2][d3]  →  flat index = i0*(d1*d2*d3) + i1*(d2*d3) + i2*d3 + i3
+```
+
+This is the **C-order (row-major) layout** and is the same convention used by NumPy by default, and by most linear algebra libraries.
+
+```cpp
+// Accessing element a[i][j][k] of a serialized 3D array:
+void access_3d(int* flat, size_t m, size_t n, size_t p,
+               size_t i, size_t j, size_t k) {
+    // flat index: i*(n*p) + j*p + k
+    return flat[i * (n * p) + j * p + k];
+}
+```
+
+This approach is particularly valuable when interfacing with Fortran libraries (which use column-major order - the opposite) or when writing generic tensor operations.

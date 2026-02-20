@@ -1,0 +1,29 @@
+---
+title: Bitwise Operators
+---
+
+
+Operate on individual bits.
+
+| Operator | Meaning |
+|----------|---------|
+| `&`      | AND     |
+| `|`      | OR      |
+| `^`      | XOR     |
+| `~`      | NOT     |
+| `<<`     | Left shift |
+| `>>`     | Right shift |
+
+## Example
+
+```cpp
+#include <iostream>
+int main() {
+  int a = 5;  // 0101
+  int b = 3;  // 0011
+
+  std::cout << (a & b) << "\n"; // 1
+  std::cout << (a | b) << "\n"; // 7
+  std::cout << (a ^ b) << "\n"; // 6
+}
+```

@@ -1,0 +1,101 @@
+---
+title: Pointers - Fundamentals
+---
+A **pointer** in C++ is a variable that stores the memory address of another variable. More precisely, a typed pointer stores the **base address** (address of the first byte) of a declared variable of that type.
+
+Pointers are one of the most powerful - and most dangerous - features of C and C++. Understanding them deeply is essential for low-level memory management, efficient data structures, and interoperability with C APIs.
+
+### Declaring and Initializing Pointers
+
+The syntax for declaring a pointer to type `T` is `T* p`. The `*` can be placed next to the type or the variable name - both are valid, but consistency matters.
+
+```cpp
+#include <iostream>
+
+int main() {
+    int i{42};       // integer variable, occupies 4 bytes at some base address
+    int* p{&i};      // pointer to int, initialized with the address of i
+
+    std::cout << i   << '\n';  // 42          - value of i
+    std::cout << &i  << '\n';  // 0x7ffdc31e254c - address of i
+    std::cout << p   << '\n';  // 0x7ffdc31e254c - value stored in p (same address)
+    std::cout << &p  << '\n';  // 0x7ffdc31e2550 - address of p itself
+    std::cout << *p  << '\n';  // 42          - value at the address p points to
+
+    return 0;
+}
+```
+
+There are two key operators at work here:
+
+- The **address-of operator** `&` applied to a variable yields its base address in memory.
+- The **dereference operator** `*` applied to a pointer yields the value stored at the address it holds.
+
+### Memory Layout
+
+On a 64-bit system, every pointer occupies **8 bytes** regardless of what type it points to. This is because an address on a 64-bit platform is 64 bits wide. You can confirm this with `sizeof(p) == 8`.
+
+An `int` itself typically occupies 4 bytes (`sizeof(int) == 4`). So `i` and `p` are different sizes in memory, and they live at different addresses - as the output above shows (`0x...254c` for `i`, `0x...2550` for `p`).
+
+```
+Memory layout (conceptual):
+
+Address         Content
+0x...254c  →   [ 42 ] [ .. ] [ .. ] [ .. ]   ← i  (4 bytes)
+0x...2550  →   [ 0x...254c (8 bytes)        ] ← p  (pointer, stores address of i)
+```
+
+### The `sizeof` Trick - Wake Up! Explained
+
+This classic exercise from the lecture:
+
+```cpp
+#include <iostream>
+
+int main() {
+    int i;
+    // sizeof(&i)  = sizeof of a pointer = 8
+    // sizeof(i+i) = sizeof of int+int   = sizeof(int) = 4
+    // sizeof(&i) - sizeof(i+i) = 8 - 4 = 4
+    //
+    // sizeof(short*) = 8 (all pointers are 8 bytes on 64-bit)
+    // sizeof(float)  = 4
+    // sizeof(short*) / sizeof(float) = 8 / 4 = 2
+    //
+    // Output concatenates: 4 followed by 2 → "42"
+    std::cout << sizeof(&i) - sizeof(i+i) << sizeof(short*) / sizeof(float) << '\n';
+    return 0;
+    // Output: 42
+}
+```
+
+The key insight: `sizeof` returns values of type `size_t`. The expression `i+i` promotes to `int`, so `sizeof(i+i) == sizeof(int) == 4`. All pointer types have the same `sizeof` on a given platform.
+
+### Pointer to Pointer (Multi-level Indirection)
+
+Pointers can themselves be pointed to. A pointer-to-pointer stores the address of a pointer variable.
+
+```cpp
+#include <iostream>
+
+int main() {
+    int i{1};
+    int*   p1{&i};   // p1 points to i
+    int**  p2{&p1};  // p2 points to p1
+    int*** p3{&p2};  // p3 points to p2
+    int**  p4{&**p3}; // **p3 dereferences p3 twice → p1; &p1 → p4 points to p1
+
+    // All of these dereference through the chain to reach i:
+    // *p1   = 1
+    // **p2  = 1
+    // ***p3 = 1
+    // **p4  = 1
+    // Sum = 4, then concatenated with string "2\n"
+
+    std::cout << *p1 + **p2 + ***p3 + **p4 << "2\n";
+    // Output: 42
+    return 0;
+}
+```
+
+Each level of indirection requires one more dereference to reach the underlying value. This is rarely needed beyond two levels in practice, but understanding it deeply clarifies how pointers work as values that contain addresses.

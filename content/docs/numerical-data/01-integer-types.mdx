@@ -1,0 +1,131 @@
+---
+title: Integer Basics
+---
+
+Integer types store whole numbers (no fractional part).  
+They differ in **size**, **range**, and **signedness**.
+
+## Overview
+
+| Type | Typical Size | Signed Range |
+|------|-------------|--------------|
+| `short` | 2 bytes | −32,768 → 32,767 |
+| `int` | 4 bytes | −2,147,483,648 → 2,147,483,647 |
+| `long` | 8 bytes | Very large |
+| `size_t` | platform-dependent | unsigned only |
+| `char` | 1 byte | −128 → 127 or 0 → 255 |
+
+Unsigned versions store only non-negative numbers but double the positive range.
+
+
+## Signed vs Unsigned
+
+```cpp
+#include <iostream>
+int main() {
+    int a = -1;              // signed integer
+    unsigned int b = 1;      // unsigned integer
+
+    std::cout << a << "\n";  // prints -1
+    std::cout << b << "\n";  // prints 1
+}
+```
+
+### Important
+
+Unsigned integers **wrap around** instead of becoming negative.
+
+```cpp
+#include <iostream>
+int main() {
+    unsigned int x = 0;
+    x = x - 1; // underflow: wraps to max value
+
+    std::cout << x << "\n";  // prints 4294967295 (on 32-bit unsigned)
+}
+```
+
+## Binary Representation
+
+Computers store integers in binary.
+
+Example: decimal **42**
+
+```
+00101010
+```
+
+Negative numbers use **two’s complement**.
+
+### Example
+
+```cpp
+#include <iostream>
+int main() {
+    int x = -42;
+
+    // Print value only (binary representation requires special tools)
+    std::cout << x << "\n";  // -42
+}
+```
+
+Two’s complement ensures addition/subtraction works uniformly.
+
+
+## Overflow
+
+Storing values outside the range causes overflow.
+
+```cpp
+#include <iostream>
+#include <limits>
+
+int main() {
+    int max = std::numeric_limits<int>::max();
+
+    std::cout << max << "\n";   // largest int
+
+    max = max + 1;              // overflow (undefined behavior)
+
+    std::cout << max << "\n";   // unpredictable result
+}
+```
+
+## `char` as Integer
+
+`char` is a small integer type representing characters (ASCII).
+
+```cpp
+#include <iostream>
+int main() {
+    char c = 'A';
+
+    std::cout << c << "\n";        // prints A
+    std::cout << (int)c << "\n";   // prints 65 (ASCII code)
+}
+```
+
+## Choosing the Right Integer Type
+
+Use:
+
+* `int` → default choice
+* `long` → very large values
+* `unsigned` → only when negative values are impossible
+* `size_t` → sizes and indices
+
+Avoid mixing signed and unsigned in comparisons.
+
+```cpp
+#include <iostream>
+int main() {
+    size_t i = 3;
+
+    // Dangerous loop (never ends)
+    for (; i >= 0; --i) {
+        std::cout << i << " ";
+    }
+}
+```
+
+Reason: unsigned values can never be negative.

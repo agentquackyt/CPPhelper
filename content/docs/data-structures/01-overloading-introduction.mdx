@@ -1,0 +1,91 @@
+---
+title: Overloading — Introduction & User-defined Types
+---
+
+## What is Overloading?
+
+In C++, **overloading** means giving the same name to multiple functions or operators, while letting the compiler select the correct one based on the types and number of arguments provided at the call site. This is resolved entirely at **compile time** — there is no runtime overhead.
+
+Two distinct forms of overloading exist:
+
+**Function overloading** allows you to define multiple functions with the same name but different parameter lists. The compiler performs *overload resolution* by matching argument types to parameter types.
+
+**Operator overloading** allows you to redefine the behavior of built-in operators (such as `+`, `-`, `<<`) for user-defined types, so that expressions involving those types read naturally.
+
+```cpp
+// Function overloading: same name, different parameter lists
+int maximum(int a, int b);           // returns max of two ints
+int maximum(int a, int b, int c);    // returns max of three ints
+
+int main() {
+    int x = maximum(3, 7);        // calls the two-argument version
+    int y = maximum(3, 7, 2);     // calls the three-argument version
+    // x == 7, y == 7
+}
+```
+
+The compiler distinguishes overloads by their **signature** — the combination of name and parameter types. Note that the return type alone is **not** sufficient to distinguish overloads.
+
+## The `dfloat` User-defined Type
+
+Throughout the overloading chapter, all examples are built around a custom struct called `dfloat` (short for *dependent float*). Understanding this type is essential before looking at any overloaded operation.
+
+```cpp
+struct dfloat {   // (potentially) dependent float
+    float f{0};   // the actual floating-point value, default-initialized to 0
+    bool  d{false}; // dependency flag: true if this value depends on a tracked input
+};
+```
+
+The member `f` behaves exactly like a regular `float`. The member `d` is a boolean **dependency flag** that gets propagated through arithmetic. If any input to a computation is marked dependent (`d == true`), the result is also marked dependent. This models a simple form of *activity analysis* — tracking which intermediate values in a computation depend on a particular input.
+
+```cpp
+#include <iostream>
+
+struct dfloat {
+    float f{0};
+    bool  d{false};
+};
+
+int main() {
+    dfloat x;
+    x.f = 3.14f;
+    x.d = true;  // mark x as a dependent (tracked) input
+
+    dfloat y;    // y.f == 0, y.d == false by default
+
+    std::cout << x.f << "\n"; // 3.14
+    std::cout << x.d << "\n"; // 1  (true)
+    std::cout << y.d << "\n"; // 0  (false)
+}
+```
+
+## Struct Variants and Member Access
+
+In their simplest form, `struct` types are collections of variables (called *members* or *fields*) of any type — fundamental, library, or other user-defined types.
+
+```cpp
+struct point3d {
+    float x, y, z;  // three float members
+};
+
+int main() {
+    point3d p;      // stack-allocated object
+    p.x = 1.0f;     // dot operator for member access
+    p.y = 2.0f;
+    p.z = 3.0f;
+
+    point3d* ptr = new point3d;  // heap-allocated object
+    ptr->x = 4.0f;               // arrow operator for pointer-to-struct
+    // equivalent: (*ptr).x = 4.0f;
+
+    delete ptr;  // must manually release heap memory
+}
+```
+
+Key access rules:
+- Use `.` when you have a **value** or **reference** of struct type.
+- Use `->` when you have a **pointer** to a struct.
+- `(*ptr).member` and `ptr->member` are exactly equivalent.
+
+Structs in C++ are actually a special form of `class` (with all members `public` by default). Their full capabilities — constructors, methods, access control — are explored in the Classes chapter.

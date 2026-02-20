@@ -1,0 +1,199 @@
+---
+title: Access Rights, const & static Members
+---
+
+## Access Rights: `public`, `private`, and Encapsulation
+
+By default, all members of a `struct` are `public` — anyone can read or write them directly. A `class` makes all members `private` by default. The keywords `public:` and `private:` start **access sections** within the class definition.
+
+**Encapsulation** (also called *information hiding*) is the practice of keeping member variables `private` and exposing only a controlled `public` interface of member functions (getters/setters). This protects invariants and allows the internal implementation to change without breaking the calling code.
+
+```cpp
+#include <iostream>
+
+class dfloat {
+    // Private section (implicit in class): no external direct access
+    float _v{24};
+    bool  _d{false};
+
+public:
+    // Public interface: controlled access to private members
+
+    // Getter + setter combined: returns a reference, enabling both read and write
+    float& value() { return _v; }
+
+    // Read-only getter (const method — does not modify the object)
+    bool is_dependent() const { return _d; }
+
+    void make_dependent() { _d = true; }
+};
+
+int main() {
+    dfloat x;
+
+    // x._v = 42;  // ERROR: '_v' is private
+    // x._d = true; // ERROR: '_d' is private
+
+    x.value() = 42;                           // write via reference getter
+    std::cout << x.value() << "\n";           // 42  (read via same getter)
+
+    x.make_dependent();
+    std::cout << x.is_dependent() << "\n";    // 1  (true)
+}
+```
+
+In **UML class diagrams**, access is shown by a prefix:
+- `+` means `public`
+- `-` means `private`
+- `#` means `protected`
+
+## Public Constructors and Access Control
+
+Constructors should almost always be `public` (so that objects can be created from outside the class). They follow the same rules as other member functions regarding access sections.
+
+```cpp
+#include <iostream>
+
+class dfloat {
+    float _v{24};   // private member variable with default value
+    bool  _d{false};
+
+public:
+    // Custom constructor: sets _v explicitly
+    dfloat(float v) : _v{v} {}
+
+    // Default constructor: uses the in-class initializer (24)
+    dfloat() = default;
+
+    float& value() { return _v; }
+    bool is_dependent() const { return _d; }
+};
+
+int main() {
+    dfloat y(42);                         // calls custom constructor
+    std::cout << y.value() << "\n";       // 42
+
+    dfloat x;                             // calls default constructor
+    std::cout << x.value() << "\n";       // 24  (in-class initializer)
+}
+```
+
+## `const` Member Functions and Member Constants
+
+A **`const` member function** (marked with `const` after the parameter list) guarantees that calling it will not modify any member variable. This is important when you have a `const` object or a `const` reference — you can only call `const` member functions on it.
+
+A **member constant** is a member variable declared `const`. It must be initialized in-class or via the constructor initializer list and cannot be modified afterward.
+
+```cpp
+#include <iostream>
+
+class dfloat {
+    float const _truth{42};  // member constant: value fixed at 42 forever
+    float       _v{24};      // mutable member variable
+
+public:
+    // const member functions: cannot modify _v or _truth
+    float get_truth() const  { return _truth; }
+    float get_value() const  { return _v; }
+
+    // non-const member function: allowed to modify _v
+    void set_value(float v)  { _v = v; }
+};
+
+int main() {
+    dfloat x;
+    x.set_value(x.get_truth());         // sets _v = 42
+    std::cout << x.get_value() << "\n"; // 42
+
+    const dfloat cx;                    // const object
+    // cx.set_value(1.0f);              // ERROR: cannot call non-const method on const object
+    std::cout << cx.get_value() << "\n"; // 24  (only const methods callable)
+}
+```
+
+## `static` Members
+
+`static` member variables are **shared by all objects** of the class — there is only one copy regardless of how many instances exist. `static` member functions operate on `static` data (they do not have access to `this`).
+
+**Initialization of `static` member variables** must happen in global scope (outside the class definition), because they exist independently of any particular object.
+
+```cpp
+#include <iostream>
+
+class dfloat {
+    float _v{42};
+    static size_t _counter;  // shared across all dfloat objects
+
+public:
+    dfloat()  { ++_counter; }   // each construction increments the counter
+    ~dfloat() { --_counter; }   // each destruction decrements the counter
+
+    static size_t get_counter() {  // static method: no 'this', only accesses static data
+        return _counter;
+    }
+
+    float& value() { return _v; }
+};
+
+// Static member must be initialized in global scope:
+size_t dfloat::_counter{0};
+
+int main() {
+    std::cout << dfloat::get_counter() << "\n";  // 0  (no objects yet)
+
+    dfloat a;
+    std::cout << dfloat::get_counter() << "\n";  // 1
+
+    {
+        dfloat b;
+        dfloat c;
+        std::cout << dfloat::get_counter() << "\n";  // 3
+    }  // b and c are destroyed here → counter decremented twice
+
+    std::cout << dfloat::get_counter() << "\n";  // 1  (only a remains)
+}
+```
+
+Note that `static` member functions are called via the **class name** (`dfloat::get_counter()`), not via an instance, because they are not associated with any particular object.
+
+## Dynamic Object Memory — Constructor Owns the Heap
+
+When a class needs a dynamically-sized internal buffer, the constructor allocates it and the destructor releases it. This is the classic **RAII** (Resource Acquisition Is Initialization) pattern.
+
+```cpp
+#include <iostream>
+
+class dfloat_vec {
+    float*  _v;   // pointer to heap-allocated array
+    size_t  _s;   // size of the array
+
+public:
+    // Constructor: allocates array and fills it
+    dfloat_vec(size_t s) : _v{new float[s]}, _s{s} {
+        for (size_t i = 0; i < _s; ++i)
+            _v[i] = float(42 % (i + 1));  // fill with modulo values
+    }
+
+    // const method: prints values without modifying the object
+    void print_values() const {
+        for (size_t i = 0; i < _s; ++i)
+            std::cout << _v[i] << " ";
+        std::cout << "\n";
+    }
+
+    // Destructor: releases the heap memory
+    ~dfloat_vec() { delete[] _v; }
+};
+
+int main() {
+    dfloat_vec x(4);
+    x.print_values();
+    // Output: 42 0 0 0
+    // (42%1=0, 42%2=0, 42%3=0, 42%4=2 — actually: 0 0 0 2)
+    // At i=0: 42%(0+1) = 42%1 = 0
+    // At i=1: 42%2 = 0
+    // At i=2: 42%3 = 0
+    // At i=3: 42%4 = 2
+    // Output: 0 0 0 2
+}  // ~dfloat_vec() called here automatically → no memory leak
+```

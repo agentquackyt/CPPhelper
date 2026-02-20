@@ -1,0 +1,30 @@
+---
+title: Increment and Decrement Operators
+---
+
+## Prefix vs Postfix
+
+### Prefix (`++i`, `--i`)
+- Modifies value first
+- Returns new value
+
+### Postfix (`i++`, `i--`)
+- Returns old value
+- Then modifies
+
+## Example
+
+```cpp
+#include <iostream>
+int main() {
+  int i = 42;
+  int j;
+
+  j = ++i; // i=43, j=43
+  std::cout << i << " " << j << "\n";
+
+  i = 42;
+  j = i++; // i=43, j=42
+  std::cout << i << " " << j << "\n";
+}
+```

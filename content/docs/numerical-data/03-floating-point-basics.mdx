@@ -1,0 +1,65 @@
+---
+title: Floating Point Basics
+---
+
+Used to represent real numbers (decimals).
+
+## Types
+
+| Type | Size | Precision |
+|------|------|-----------|
+| `float` | 4 bytes | ~6 digits |
+| `double` | 8 bytes | ~15 digits |
+
+
+## Basic Example
+
+```cpp
+#include <iostream>
+int main() {
+    float f = 1.1f;
+    double d = 1.1;
+
+    std::cout << f << "\n";
+    std::cout << d << "\n";
+}
+```
+
+`double` is more precise and preferred.
+
+
+## Why Floating Point Is Tricky
+
+Real numbers are infinite; computers store approximations.
+
+```cpp
+#include <iostream>
+int main() {
+    double x = 0.1 + 0.2;
+
+    std::cout << x << "\n";  // prints 0.30000000000000004
+}
+```
+
+## Scientific Notation
+
+```cpp
+double a = 1.23e3;  // 1230
+double b = 4.5e-2;  // 0.045
+```
+
+## Float vs Double Precision
+
+```cpp
+#include <iostream>
+#include <iomanip>
+
+int main() {
+    float f = 1.0f / 3.0f;
+    double d = 1.0 / 3.0;
+
+    std::cout << std::setprecision(20);
+    std::cout << f << "\n";  // less precise
+    std::cout << d << "\n";  // more precise
+}
+```

@@ -1,0 +1,31 @@
+---
+title: Conditional Operator
+---
+
+A shorthand for `if-else`.
+
+## Syntax
+
+```cpp
+condition ? value_if_true : value_if_false;
+```
+
+## Example
+
+```cpp
+#include <iostream>
+int main() {
+  int i = 1, j = 2;
+
+  j = (i < j) ? j++ : 0;
+  i = (i > j) ? 0 : ++i;
+
+  std::cout << i << "\t" << j;
+}
+```
+
+## When to Use
+
+* Short decisions
+* Inline assignments
+* Avoiding verbose `if-else`

@@ -1,0 +1,157 @@
+---
+title: Pointer Arithmetic
+---
+
+Because pointers store memory addresses, it is meaningful to do arithmetic on them - but the arithmetic is scaled by the **size of the pointed-to type**. Adding an integer `c` to a pointer `p` of type `T*` yields the address `p + c * sizeof(T)`.
+
+This is the fundamental mechanism behind array traversal in C and C++.
+
+### Increment and Decrement
+
+```cpp
+#include <iostream>
+
+int main() {
+    int i{42};
+    int* p{&i};
+
+    // Printing p+1 and p-2 does NOT modify p itself
+    std::cout << p   << '\n';  // e.g. 0x7ffed698a504 - current address
+    std::cout << p+1 << '\n';  // 0x7ffed698a508 - 4 bytes ahead (sizeof(int) = 4)
+    std::cout << p-2 << '\n';  // 0x7ffed698a4fc - 8 bytes before (out of bounds!)
+
+    // ++ and -- DO modify p
+    std::cout << ++p << '\n';  // 0x7ffed698a508 - pre-increment: p advances, then print
+    std::cout << p-- << '\n';  // 0x7ffed698a508 - post-decrement: print, then p retreats
+    std::cout << p   << '\n';  // 0x7ffed698a504 - back to original
+
+    return 0;
+}
+// Note: p-2 will trigger a compiler warning:
+// warning: array subscript -2 is outside array bounds of 'int [1]'
+// The compiler is smart enough to detect this out-of-bounds arithmetic statically.
+```
+
+The distinction between pre- and post-increment is the same as for integers: `++p` modifies and returns the new value, while `p++` returns the old value and then modifies.
+
+### Wake Up! - Post-decrement and Dereference
+
+```cpp
+#include <iostream>
+
+int main() {
+    int i{1}, j{2}, *p{&j};
+    // p currently points to j (value 2)
+
+    // j * *(p--)
+    // p-- returns current p (pointing to j), then decrements p (now points before j)
+    // *(p--) dereferences the original p → value of j = 2
+    // j * 2 = 2 * 2 = 4
+    std::cout << j * *(p--);
+
+    // p was decremented, now points to i (on the stack, j and i are adjacent)
+    // ++p brings p back to pointing at j
+    // *(++p) = value of j = 2
+    // i * 2 = 1 * 2 = 2
+    std::cout << i * *(++p) << '\n';
+
+    // Output: 42
+    return 0;
+}
+```
+
+This example relies on the stack layout where `i` and `j` happen to be adjacent in memory. That's why the question says "likely to be" - it's technically implementation-defined, but on typical x86-64 systems with sequential local variable allocation, it works predictably.
+
+### Why Pointer Arithmetic Is Safe (Within Bounds)
+
+Pointer arithmetic is only safe when you stay within the bounds of a valid array or object. Going out of bounds - even without dereferencing - is **undefined behaviour** in C++. The compiler may allow it to compile, but the runtime behaviour is unpredictable.
+
+```cpp
+int arr[5]{10, 20, 30, 40, 50};
+int* p = arr;       // points to arr[0]
+
+p += 2;             // now points to arr[2]
+*p = 99;            // arr[2] is now 99 - valid
+
+p += 10;            // points far outside the array - undefined behaviour!
+*p = 0;             // writing here is undefined - program may crash or corrupt data
+```
+
+---
+
+## Pointer Constantness
+
+Both the **pointer itself** and the **memory it points to** can independently be declared `const`. This gives four combinations, and the position of `const` in the type determines which part is read-only.
+
+The rule: read the declaration **right-to-left**.
+
+```
+const int* p     →  pointer to const int     (can move p, cannot change *p)
+int* const p     →  const pointer to int     (cannot move p, can change *p)
+const int* const p  →  const pointer to const int  (cannot move p, cannot change *p)
+```
+
+### All Three Cases Side by Side
+
+```cpp
+int main() {
+    int i{42};
+
+    // Case 1: non-const pointer, const target
+    // You can advance the pointer, but cannot write through it
+    const int* p1{&i};
+    *(p1++);     // OK: advancing the pointer is fine
+    // (*p1)++;  // ERROR: increment of read-only location
+
+    // Case 2: const pointer, non-const target
+    // You cannot move the pointer, but you can modify what it points to
+    int* const p2{&i};
+    // *(p2++);  // ERROR: increment of read-only variable 'p2'
+    (*p2)++;     // OK: modifying *p2 is fine (i becomes 43)
+
+    // Case 3: const pointer, const target
+    // Neither the pointer nor the pointed-to value can be changed
+    const int* const p3{&i};
+    // *(p3++);  // ERROR: increment of read-only variable 'p3'
+    // (*p3)++;  // ERROR: increment of read-only location '*(const int*)p3'
+
+    return 0;
+}
+```
+
+### Why `const` Matters
+
+Using `const` is not just a stylistic choice - it has real benefits:
+
+**Safety:** The compiler catches accidental modifications at compile time, before they become runtime bugs.
+
+**Optimisation:** When the compiler knows a value won't change, it can cache it in a register, elide redundant loads, or perform more aggressive inlining.
+
+**API design:** Marking pointer parameters as `const T*` communicates intent to callers - "I will not modify your data" - and enforces that contract.
+
+### Complex Const Chains
+
+The lecture also explores multi-level const pointers. The same right-to-left reading rule applies:
+
+```cpp
+int main() {
+    int i{1};
+
+    // const int* p1 - pointer to const int
+    const int* p1{&i};
+
+    // *const* p2 - pointer to (const pointer to const int)
+    // p2 itself is non-const (can be moved), but *p2 is a const pointer
+    const int* const* p2{&p1};
+
+    // Similar extensions for p3 and p4 ...
+
+    // All of *p1, **p2, ***p3, **p4 resolve to i = 1
+    // Sum = 4, then 2**&i = 2 * 1 = 2 → concatenated output
+    std::cout << *p1 + **p2 << 2 * *&i << "\n";
+    // Output: 42
+    return 0;
+}
+```
+
+The `2**&i` part parses as `2 * (*(&i))` = `2 * i` = `2 * 1` = `2`. The `&` and `*` cancel out.

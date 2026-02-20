@@ -1,0 +1,96 @@
+---
+title: Standard Library
+description: |
+  Most important functions of the C++ standard library
+---
+
+## Input and Output
+
+The C++ standard library provides basic input and output functionality through the `<iostream>` header. The example below demonstrates how to use `std::cout` for output and `std::cin` for input:
+```cpp
+#include <iostream>
+
+int main() {
+    std::cout << "Pricing Black Russian.\n";
+    float r0=0.6, r1=0.4;
+    float p0, p1, p2;
+    std::cout << "Price of Vodka = ";
+    std::cin >> p0;
+    std::cout << "Price of Kahlua = ";
+    std::cin >> p1;
+    p2=r0*p0+r1*p1;
+    std::cout << "Price of Black Russian = " << p2 << '\n';
+    return 0;
+}
+```
+
+## Working with Files
+
+The `<fstream>` header provides classes for file input and output. Below is an example of how to read from and write to a file using `std::ofstream` and `std::ifstream`:
+```cpp
+#include <iostream>
+#include <fstream>
+
+int main() {
+    // Writing to a file
+    std::ofstream outFile("example.txt");
+    if (outFile.is_open()) {
+        outFile << "Hello, World!\n";
+        outFile << "This is a file example.\n";
+        outFile.close();
+    } else {
+        std::cerr << "Unable to open file for writing.\n";
+    }
+
+    // Reading from a file
+    std::ifstream inFile("example.txt");
+    if (inFile.is_open()) {
+        std::string line;
+        while (std::getline(inFile, line)) {
+            std::cout << line << '\n';
+        }
+        inFile.close();
+    } else {
+        std::cerr << "Unable to open file for reading.\n";
+    }
+
+    return 0;
+}
+```
+
+## Vectors and Strings
+- `std::vector`: A dynamic array that can resize itself automatically when elements are added or removed.
+- `std::string`: A class that represents a sequence of characters and provides various functions for manipulating strings.
+
+```cpp
+#include <vector>
+#include <string>
+#include <iostream>
+
+int main() {
+    std::vector<int> numbers = {1, 2, 3, 4, 5};
+    std::string greeting = "Hello, World!";
+
+    std::cout << "Numbers: ";
+    for (int num : numbers) {
+        std::cout << num << " ";
+    }
+    std::cout << "\nGreeting: " << greeting << std::endl;
+}
+```
+
+## CLI Arguments
+The `main` function can accept command-line arguments, which are passed as parameters. The first parameter (`argc`) is the count of arguments, and the second parameter (`argv`) is an array of C-style strings representing the arguments.
+
+**Important:** The first argument (`argv[0]`) is typically the name of the program itself, so `./hello_world` would be the first argument when running the program from the command line.
+
+```cpp
+#include <iostream>
+int main(int argc, char* argv[]) {
+    std::cout << "Number of arguments: " << argc << "\n";
+    for (int i = 0; i < argc; ++i) {
+        std::cout << "Argument " << i << ": " << argv[i] << "\n";
+    }
+    return 0;
+}
+```

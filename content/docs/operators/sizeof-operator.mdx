@@ -1,0 +1,23 @@
+---
+title: sizeof Operator
+---
+
+Returns size (in bytes) of a type or variable.
+
+## Example
+
+```cpp
+#include <iostream>
+int main() {
+  int i = 0;
+
+  std::cout << sizeof(i) << "\n";
+  std::cout << sizeof(int) << "\n";
+  std::cout << sizeof(0) << "\n";
+}
+```
+
+## Notes
+
+* Evaluated at compile time
+* Depends on system architecture

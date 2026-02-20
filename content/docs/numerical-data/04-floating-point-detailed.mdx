@@ -1,0 +1,244 @@
+---
+title: How Floating-Point numbers work
+---
+
+Floating-point numbers allow computers to represent real numbers (decimals), but they are **not stored exactly** like integers.  
+Instead, they use a scientific-notation-like format defined by the **IEEE-754 standard**.
+
+A floating-point number is stored as three parts:
+
+| Part | Meaning |
+|------|---------|
+| **Sign bit** | Positive or negative |
+| **Exponent** | Scales the number |
+| **Mantissa (Significand)** | Precision bits of the number |
+
+
+## Scientific Notation Analogy
+
+In base-10 scientific notation:
+
+```text
+6.022 × 10²³
+```
+
+Floating-point uses base-2 (binary):
+
+```text
+± 1.mantissa × 2^exponent
+```
+
+## IEEE-754 Layouts
+
+### `float` (single precision - 32 bits)
+
+| Bits | Purpose  |
+| ---- | -------- |
+| 1    | Sign     |
+| 8    | Exponent |
+| 23   | Mantissa |
+
+Precision: ~6–7 decimal digits
+
+
+### `double` (double precision - 64 bits)
+
+| Bits | Purpose  |
+| ---- | -------- |
+| 1    | Sign     |
+| 11   | Exponent |
+| 52   | Mantissa |
+
+Precision: ~15–16 decimal digits
+
+
+## Example: Storing the Number 1.0
+
+Binary scientific form:
+
+```text
+1.0 = 1.0 × 2^0
+```
+
+### Step-by-step
+
+* Sign = 0 (positive)
+* Mantissa = 0 (because leading 1 is implicit)
+* Exponent = bias value
+
+For `float`, exponent bias = **127**
+
+Stored exponent:
+
+```text
+0 + 127 = 127 → 01111111
+```
+
+Final 32-bit representation:
+
+```text
+0 01111111 00000000000000000000000
+```
+
+## Example: Storing 2.5
+
+### Convert to binary
+
+```text
+2.5 = 10.1₂
+```
+
+Normalize:
+
+```text
+1.01 × 2¹
+```
+
+### Components
+
+* Sign = 0
+* Exponent = 1 + bias
+* Mantissa = 010000...
+
+Stored float bits:
+
+```text
+0 10000000 01000000000000000000000
+```
+
+## Why the Leading 1 Is Missing
+
+Normalized numbers always have:
+
+```text
+1.xxxxx
+```
+
+The leading 1 is **not stored** (implicit), giving one extra bit of precision.
+
+## Special Cases
+
+### Zero
+
+All bits = 0
+
+```text
+0 00000000 00000000000000000000000
+```
+
+
+### Infinity
+
+Exponent = all 1s
+Mantissa = 0
+
+### NaN (Not a Number)
+
+Exponent = all 1s
+Mantissa ≠ 0
+
+Example:
+
+```cpp
+#include <iostream>
+#include <cmath>
+
+int main() {
+    double x = std::sqrt(-1); // invalid
+    std::cout << x << "\n";   // NaN
+}
+```
+
+## Denormalized (Subnormal) Numbers
+
+Used for numbers extremely close to zero.
+
+* Exponent = 0
+* No implicit leading 1
+
+Allows gradual underflow instead of jumping to zero.
+
+## Why Floating-Point Cannot Represent All Decimals
+
+Binary fractions cannot represent many decimal fractions exactly.
+
+Example:
+
+```cpp
+#include <iostream>
+int main() {
+    double x = 0.1;
+
+    std::cout << std::fixed << x << "\n";
+}
+```
+
+Internally, 0.1 becomes an approximation.
+
+## Rounding Behavior
+
+IEEE-754 default:
+
+**Round to nearest, ties to even**
+
+This minimizes systematic bias.
+
+## Machine Epsilon
+
+Smallest number ε such that:
+
+```text
+1 + ε ≠ 1
+```
+
+```cpp
+#include <iostream>
+#include <limits>
+
+int main() {
+    std::cout << std::numeric_limits<double>::epsilon();
+}
+```
+
+Important for numerical algorithms and comparisons.
+
+## Using `<limits>` for Floating-Point Types
+
+The `<limits>` header provides properties of numeric types.
+
+### Example: Query Float Properties
+
+```cpp
+#include <iostream>
+#include <limits>
+
+int main() {
+    std::cout << std::numeric_limits<float>::max() << "\n";      // largest value
+    std::cout << std::numeric_limits<float>::min() << "\n";      // smallest positive normalized
+    std::cout << std::numeric_limits<float>::lowest() << "\n";   // most negative
+    std::cout << std::numeric_limits<float>::digits << "\n";     // precision bits
+    std::cout << std::numeric_limits<float>::digits10 << "\n";   // decimal digits
+}
+```
+
+### Example: Double Precision Limits
+
+```cpp
+#include <iostream>
+#include <limits>
+
+int main() {
+    std::cout << std::numeric_limits<double>::max() << "\n";
+    std::cout << std::numeric_limits<double>::min() << "\n";
+    std::cout << std::numeric_limits<double>::epsilon() << "\n";
+}
+```
+
+### When to Use `<limits>`
+
+Use it when you need:
+
+* Safe numeric ranges
+* Precision information
+* Overflow/underflow awareness
+* Portable code across platforms

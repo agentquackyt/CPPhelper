@@ -1,0 +1,25 @@
+---
+title: Logical Operators 
+---
+
+Logical operators combine boolean expressions.
+
+| Operator | Meaning |
+|----------|---------|
+| `&&`     | AND     |
+| `\|\|`     | OR      |
+| `!`      | NOT     |
+
+## Example
+
+```cpp
+#include <iostream>
+int main() {
+  bool a = true;
+  bool b = false;
+
+  std::cout << (a && b) << "\n"; // 0
+  std::cout << (a || b) << "\n"; // 1
+  std::cout << (!a) << "\n";     // 0
+}
+```
